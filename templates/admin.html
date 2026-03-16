@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>Master Logistic | Mission Control</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #050505; color: #e5e5e5; font-family: sans-serif; }
+        .glass-card { background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="p-8">
+    <div class="flex justify-between items-end mb-12 border-b border-white/10 pb-6">
+        <div>
+            <h1 class="text-4xl font-black tracking-tighter uppercase italic text-white">Master Logistic</h1>
+            <p class="text-xs tracking-[0.3em] text-white/50 uppercase">Mission Control Center</p>
+        </div>
+        <div class="text-right">
+            <p class="status-active font-mono text-sm text-green-500">● SYSTEM ONLINE</p>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+        <div class="glass-card p-6">
+            <p class="text-xs uppercase text-white/40">Registered Units</p>
+            <h2 class="text-4xl">{{ users|length if users else 0 }}</h2>
+        </div>
+        <div class="glass-card p-6">
+            <p class="text-xs uppercase text-white/40">Active Payloads</p>
+            <h2 class="text-4xl">{{ jobs_count if jobs_count else 0 }}</h2>
+        </div>
+    </div>
+
+    <div class="glass-card overflow-hidden">
+        <table class="w-full text-left">
+            <thead class="bg-white/5 text-xs uppercase text-white/40">
+                <tr>
+                    <th class="p-4">Personnel</th>
+                    <th class="p-4">Status</th>
+                    <th class="p-4 text-right">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr class="border-b border-white/5">
+                    <td class="p-4">{{ user.full_name }}</td>
+                    <td class="p-4">{{ "Verified" if user.is_verified else "Pending" }}</td>
+                    <td class="p-4 text-right">
+                        <button class="border border-white/20 px-3 py-1 text-xs">Authorize</button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>
