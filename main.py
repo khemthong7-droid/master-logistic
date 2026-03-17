@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends, HTTPException, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles  # <--- เพิ่มมาเพื่อระบบรูปภาพ
 from sqlalchemy.orm import Session
 from app import database, models
 import uvicorn
@@ -8,14 +9,12 @@ import requests
 import json
 import os
 
-# --- 🛰️ 1. LINE CONFIGURATION (รหัสจริงของ MASGISTICS) ---
-# ระบบจะพยายามดึงจาก Environment ของ Render ก่อน ถ้าไม่มีจะใช้รหัสที่คุณใส่ไว้
+# --- 🛰️ 1. CONFIGURATION (LINE & DATABASE) ---
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN", "t3oqxpj2T5iHob1wQc+dD4VdsBkEndvRL6Qw6LbYvCf1q8XCNxYDdBF8HV3Mmij96NyoZ6BwirfT7E7qz8c0gqL8mEv65WGV+bEFhu8+aUfVkZu9cZWbiGMbVBCb+S9yC96x0eWOAVADwGzYAJEmcwdB04t89/1O/w1cDnyilFU=")
 USER_ID = os.getenv("USER_ID", "U2d0ca4bdeca0910361b01438c9f19e23")
 
-# --- 🧠 2. HELPER FUNCTIONS (ระบบแจ้งเตือนอัจฉริยะ) ---
+# --- 🧠 2. HELPER FUNCTIONS ---
 def send_line_message(text):
-    """ส่งข้อความแจ้งเตือนเข้าสู่ LINE OA ส่วนตัวของ CEO"""
     url = "https://api.line.me/v2/bot/message/push"
     headers = {
         "Content-Type": "application/json",
@@ -23,12 +22,7 @@ def send_line_message(text):
     }
     payload = {
         "to": USER_ID,
-        "messages": [
-            {
-                "type": "text",
-                "text": f"🛰️ MASGISTICS REPORT:\n{text}"
-            }
-        ]
+        "messages": [{"type": "text", "text": f"🛰️ MASGISTICS REPORT:\n{text}"}]
     }
     try:
         response = requests.post(url, headers=headers, data=json.dumps(payload))
@@ -36,9 +30,16 @@ def send_line_message(text):
     except Exception as e:
         print(f"LINE Error: {e}")
 
-# --- 🚀 3. SYSTEM INITIALIZATION (เริ่มระบบ) ---
+# --- 🚀 3. SYSTEM INITIALIZATION ---
 database.init_db()
 app = FastAPI(title="MASGISTICS - Mission Control")
+
+# --- 📁 ตั้งค่าการเข้าถึงโฟลเดอร์รูปภาพ (Static Files) ---
+# สร้างโฟลเดอร์ชื่อ 'static' ใน GitHub แล้วเอารูปโลโก้ชื่อ logo.png ไปไว้ในนั้นนะครับ
+if not os.path.exists("static"):
+    os.makedirs("static")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
 templates = Jinja2Templates(directory="templates")
 
 def get_db():
@@ -48,30 +49,21 @@ def get_db():
     finally:
         db.close()
 
-# --- 🛸 4. ROUTES (จุดบัญชาการทั้งหมด) ---
+# --- 🛸 4. ROUTES (MISSION COMMANDS) ---
 
 @app.get("/")
 def root():
-    """หน้าแรก: ส่งตัวไปที่หน้า Dashboard ทันที"""
     return RedirectResponse(url="/admin")
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request, db: Session = Depends(get_db)):
-    """หน้า Mission Control: สรุปสถานะธุรกิจทั้งหมด"""
     users = db.query(models.User).all()
     jobs = db.query(models.Job).all()
-    
-    # คำนวณมูลค่ารวมในระบบ
     total_payload_value = sum(job.price for job in jobs) if jobs else 0
-    # คำนวณรายได้คาดการณ์ (ครั้งละ 50 บาท)
     potential_revenue = len(jobs) * 50 
-    
     return templates.TemplateResponse("admin.html", {
-        "request": request, 
-        "users": users, 
-        "jobs": jobs,
-        "jobs_count": len(jobs),
-        "total_value": total_payload_value,
+        "request": request, "users": users, "jobs": jobs,
+        "jobs_count": len(jobs), "total_value": total_payload_value,
         "potential_revenue": potential_revenue
     })
 
@@ -81,22 +73,15 @@ def add_job(
     destination: str = Form(...), price: float = Form(...), 
     truck_type: str = Form(...), db: Session = Depends(get_db)
 ):
-    """ระบบลงประกาศงานใหม่ พร้อมแจ้งเตือนเข้า LINE"""
-    new_job = models.Job(
-        title=title, origin=origin, destination=destination,
-        price=price, truck_type_required=truck_type, status="Open"
-    )
+    new_job = models.Job(title=title, origin=origin, destination=destination,
+                         price=price, truck_type_required=truck_type, status="Open")
     db.add(new_job)
     db.commit()
-    
-    # ยิงสัญญาณแจ้งเตือน LINE
     send_line_message(f"📦 Payload ใหม่: {title}\n📍 เส้นทาง: {origin} -> {destination}\n💰 มูลค่า: ฿{price:,.0f}")
-    
     return RedirectResponse(url="/admin", status_code=303)
 
 @app.get("/join", response_class=HTMLResponse)
 def join_page(request: Request):
-    """หน้าลงทะเบียนสำหรับคนขับ (Personnel Onboarding)"""
     return templates.TemplateResponse("register.html", {"request": request})
 
 @app.post("/initiate-onboarding")
@@ -105,43 +90,19 @@ def initiate_onboarding(
     truck_type: str = Form(...), province: str = Form(...),
     db: Session = Depends(get_db)
 ):
-    """ระบบรับสมัครคนขับใหม่ พร้อมแจ้งเตือนเข้า LINE"""
     new_user = models.User(full_name=name, phone=phone, role="contractor")
     db.add(new_user)
     db.commit()
-    
-    # ยิงสัญญาณแจ้งเตือน LINE
     send_line_message(f"👩‍🚀 นักบินใหม่สมัครเข้าประจำการ!\n👤 ชื่อ: {name}\n🚛 รถ: {truck_type}\nภูมิภาค: {province}")
-    
-    return HTMLResponse(content=f"""
-        <html>
-            <body style='background:#050505;color:#00ff41;display:flex;justify-content:center;align-items:center;height:100vh;text-align:center;font-family:sans-serif;'>
-                <div>
-                    <h1 style='letter-spacing:5px;'>TRANSMISSION RECEIVED</h1>
-                    <p style='color:white;'>ข้อมูลของ {name} ถูกส่งเข้าสู่ศูนย์ควบคุม MASGISTICS แล้ว</p>
-                    <a href='/join' style='color:#00ff41;text-decoration:none;border:1px solid #00ff41;padding:10px 20px;margin-top:20px;display:inline-block;'>RETURN TO PORTAL</a>
-                </div>
-            </body>
-        </html>
-    """)
+    return HTMLResponse(content=f"<html><body style='background:#050505;color:#00ff41;display:flex;justify-content:center;align-items:center;height:100vh;text-align:center;'><div><h1>TRANSMISSION RECEIVED</h1><p>ข้อมูลของ {name} ถูกส่งเข้าศูนย์ควบคุมแล้ว</p><a href='/join' style='color:white;'>กลับ</a></div></body></html>")
 
 @app.post("/admin/verify/{user_id}")
 def verify_user(user_id: int, db: Session = Depends(get_db)):
-    """ปุ่ม Authorize อนุมัติคนขับในระบบ"""
     user = db.query(models.User).filter(models.User.id == user_id).first()
     if user:
         user.is_verified = True
         db.commit()
     return RedirectResponse(url="/admin", status_code=303)
 
-@app.get("/test-add")
-def test_add(db: Session = Depends(get_db)):
-    """ปุ่มทดสอบระบบด่วน"""
-    new_user = models.User(full_name="Teerapong Rocket", phone="0812345678", role="contractor")
-    db.add(new_user)
-    db.commit()
-    return RedirectResponse(url="/admin")
-
-# --- 5. IGNITION (เริ่มเดินเครื่อง) ---
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
