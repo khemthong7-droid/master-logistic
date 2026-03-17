@@ -4,17 +4,35 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from app import database, models
 import uvicorn
+import requests
+import json
 
-# 1. เริ่มระบบฐานข้อมูล
+# --- 🛰️ 1. LINE CONFIGURATION (ใส่รหัสของคุณที่นี่) ---
+CHANNEL_ACCESS_TOKEN = "t3oqxpj2T5iHob1wQc+dD4VdsBkEndvRL6Qw6LbYvCf1q8XCNxYDdBF8HV3Mmij96NyoZ6BwirfT7E7qz8c0gqL8mEv65WGV+bEFhu8+aUfVkZu9cZWbiGMbVBCb+S9yC96x0eWOAVADwGzYAJEmcwdB04t89/1O/w1cDnyilFU="
+USER_ID = "U2d0ca4bdeca0910361b01438c9f19e23"
+
+# --- 🧠 2. HELPER FUNCTIONS ---
+def send_line_message(text):
+    url = "https://api.line.me/v2/bot/message/push"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {CHANNEL_ACCESS_TOKEN}"
+    }
+    payload = {
+        "to": USER_ID,
+        "messages": [{"type": "text", "text": f"🛰️ MASGISTICS REPORT:\n{text}"}]
+    }
+    try:
+        response = requests.post(url, headers=headers, data=json.dumps(payload))
+        print(f"LINE Status: {response.status_code}")
+    except Exception as e:
+        print(f"LINE Error: {e}")
+
+# --- 🚀 3. SYSTEM INITIALIZATION ---
 database.init_db()
-
-# 2. สร้าง App Object (ต้องอยู่ตรงนี้!)
-app = FastAPI(title="Mastics - Mission Control")
-
-# 3. ตั้งค่าระบบแสดงผลหน้าเว็บ
+app = FastAPI(title="MASGISTICS - Mission Control")
 templates = Jinja2Templates(directory="templates")
 
-# 4. ฟังก์ชันเชื่อมต่อฐานข้อมูล
 def get_db():
     db = database.SessionLocal()
     try:
@@ -22,31 +40,55 @@ def get_db():
     finally:
         db.close()
 
-# --- 🚀 ROUTES (ลำดับการทำงาน) ---
+# --- 🛸 4. ROUTES (จุดควบคุมระบบ) ---
 
-# หน้าแรกสุด: ให้ Redirect ไปที่หน้า Admin ทันที (แก้ปัญหา 404)
 @app.get("/")
 def root():
     return RedirectResponse(url="/admin")
 
-# หน้า Mission Control
 @app.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     users = db.query(models.User).all()
     jobs = db.query(models.Job).all()
     total_payload_value = sum(job.price for job in jobs) if jobs else 0
     potential_revenue = len(jobs) * 50 
-    
     return templates.TemplateResponse("admin.html", {
-        "request": request, 
-        "users": users, 
-        "jobs": jobs,
-        "jobs_count": len(jobs),
-        "total_value": total_payload_value,
+        "request": request, "users": users, "jobs": jobs,
+        "jobs_count": len(jobs), "total_value": total_payload_value,
         "potential_revenue": potential_revenue
     })
 
-# ระบบอนุมัติคนขับ
+@app.post("/admin/add-job")
+def add_job(
+    title: str = Form(...), origin: str = Form(...), 
+    destination: str = Form(...), price: float = Form(...), 
+    truck_type: str = Form(...), db: Session = Depends(get_db)
+):
+    new_job = models.Job(title=title, origin=origin, destination=destination,
+                         price=price, truck_type_required=truck_type, status="Open")
+    db.add(new_job)
+    db.commit()
+    # แจ้งเตือนผ่าน LINE เมื่อมีการลงงานใหม่
+    send_line_message(f"📦 Payload ใหม่: {title}\nเส้นทาง: {origin} -> {destination}\nราคา: ฿{price:,.0f}")
+    return RedirectResponse(url="/admin", status_code=303)
+
+@app.get("/join", response_class=HTMLResponse)
+def join_page(request: Request):
+    return templates.TemplateResponse("register.html", {"request": request})
+
+@app.post("/initiate-onboarding")
+def initiate_onboarding(
+    name: str = Form(...), phone: str = Form(...), 
+    truck_type: str = Form(...), province: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    new_user = models.User(full_name=name, phone=phone, role="contractor")
+    db.add(new_user)
+    db.commit()
+    # แจ้งเตือนผ่าน LINE เมื่อมีคนขับสมัครใหม่
+    send_line_message(f"👩‍🚀 นักบินใหม่สมัครเข้าประจำการ!\nชื่อ: {name}\nรถ: {truck_type}\nจังหวัด: {province}")
+    return HTMLResponse(content=f"<html><body style='background:#050505;color:#00ff41;display:flex;justify-content:center;align-items:center;height:100vh;text-align:center;'><div><h1>TRANSMISSION RECEIVED</h1><p>ข้อมูลของ {name} ถูกส่งเข้าศูนย์ควบคุมแล้ว</p><a href='/join' style='color:white;'>กลับ</a></div></body></html>")
+
 @app.post("/admin/verify/{user_id}")
 def verify_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(models.User).filter(models.User.id == user_id).first()
@@ -55,66 +97,5 @@ def verify_user(user_id: int, db: Session = Depends(get_db)):
         db.commit()
     return RedirectResponse(url="/admin", status_code=303)
 
-# ระบบลงประกาศงาน
-@app.post("/admin/add-job")
-def add_job(
-    title: str = Form(...), 
-    origin: str = Form(...), 
-    destination: str = Form(...), 
-    price: float = Form(...), 
-    truck_type: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    new_job = models.Job(
-        title=title, origin=origin, destination=destination,
-        price=price, truck_type_required=truck_type, status="Open"
-    )
-    db.add(new_job)
-    db.commit()
-    return RedirectResponse(url="/admin", status_code=303)
-
-# ระบบทดสอบ
-@app.get("/test-add")
-def test_add(db: Session = Depends(get_db)):
-    new_user = models.User(full_name="Teerapong Rocket", phone="0812345678", role="contractor")
-    db.add(new_user)
-    db.commit()
-    return RedirectResponse(url="/admin")
-
-# 5. สั่งเริ่มเดินเครื่องยนต์
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
-
-# --- 👩‍🚀 CARRIER REGISTRATION (หน้าสมัครสำหรับคนขับ) ---
-@app.get("/join", response_class=HTMLResponse)
-def join_page(request: Request):
-    return templates.TemplateResponse("register.html", {"request": request})
-
-@app.post("/initiate-onboarding")
-def initiate_onboarding(
-    name: str = Form(...), 
-    phone: str = Form(...), 
-    truck_type: str = Form(...),
-    province: str = Form(...),
-    db: Session = Depends(get_db)
-):
-    # 1. สร้าง User ใหม่
-    new_user = models.User(full_name=name, phone=phone, role="contractor")
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    # 2. ในอนาคตเราจะเอาข้อมูลรถ (truck_type, province) ไปเก็บในตาราง Trucks
-    # ตอนนี้ให้ระบบตอบรับความสำเร็จก่อน
-    return HTMLResponse(content=f"""
-        <html>
-            <body style="background-color:#050505; color:white; font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center;">
-                <div>
-                    <h1 style="color:#00ff41;">TRANSMISSION RECEIVED</h1>
-                    <p>ยินดีด้วยคุณ {name}, ข้อมูลของคุณถูกส่งเข้าสู่ศูนย์ควบคุมแล้ว</p>
-                    <p style="color:gray;">กรุณารอการอนุมัติ (Authorize) จากระบบ</p>
-                    <a href="/join" style="color:white; text-decoration:none; border:1px solid white; padding:10px 20px;">กลับหน้าหลัก</a>
-                </div>
-            </body>
-        </html>
-    """)
