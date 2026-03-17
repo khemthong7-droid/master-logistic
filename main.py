@@ -9,7 +9,7 @@ import uvicorn
 database.init_db()
 
 # 2. สร้าง App Object (ต้องอยู่ตรงนี้!)
-app = FastAPI(title="Master Logistic - Mission Control")
+app = FastAPI(title="Mastics - Mission Control")
 
 # 3. ตั้งค่าระบบแสดงผลหน้าเว็บ
 templates = Jinja2Templates(directory="templates")
