@@ -84,3 +84,37 @@ def test_add(db: Session = Depends(get_db)):
 # 5. สั่งเริ่มเดินเครื่องยนต์
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+
+# --- 👩‍🚀 CARRIER REGISTRATION (หน้าสมัครสำหรับคนขับ) ---
+@app.get("/join", response_class=HTMLResponse)
+def join_page(request: Request):
+    return templates.TemplateResponse("register.html", {"request": request})
+
+@app.post("/initiate-onboarding")
+def initiate_onboarding(
+    name: str = Form(...), 
+    phone: str = Form(...), 
+    truck_type: str = Form(...),
+    province: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    # 1. สร้าง User ใหม่
+    new_user = models.User(full_name=name, phone=phone, role="contractor")
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # 2. ในอนาคตเราจะเอาข้อมูลรถ (truck_type, province) ไปเก็บในตาราง Trucks
+    # ตอนนี้ให้ระบบตอบรับความสำเร็จก่อน
+    return HTMLResponse(content=f"""
+        <html>
+            <body style="background-color:#050505; color:white; font-family:sans-serif; display:flex; justify-content:center; align-items:center; height:100vh; text-align:center;">
+                <div>
+                    <h1 style="color:#00ff41;">TRANSMISSION RECEIVED</h1>
+                    <p>ยินดีด้วยคุณ {name}, ข้อมูลของคุณถูกส่งเข้าสู่ศูนย์ควบคุมแล้ว</p>
+                    <p style="color:gray;">กรุณารอการอนุมัติ (Authorize) จากระบบ</p>
+                    <a href="/join" style="color:white; text-decoration:none; border:1px solid white; padding:10px 20px;">กลับหน้าหลัก</a>
+                </div>
+            </body>
+        </html>
+    """)
