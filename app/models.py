@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Text
 from sqlalchemy.orm import relationship, declarative_base
-import datetime
+from datetime import datetime, timezone # ใช้มาตรฐานใหม่
 
 Base = declarative_base()
 
@@ -23,13 +23,21 @@ class Job(Base):
     truck_type_required = Column(String)
     price = Column(Float)
     status = Column(String, default="Open")
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 class Transaction(Base):
     __tablename__ = "transactions"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"))
     amount = Column(Float)
-    type = Column(String)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    type = Column(String) # Top-up, Job-Deduction
+    timestamp = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     user = relationship("User", back_populates="transactions")
+
+class SystemEvent(Base):
+    __tablename__ = "system_events"
+    id = Column(Integer, primary_key=True, index=True)
+    event_type = Column(String)
+    user_id = Column(Integer, nullable=True)
+    metadata_json = Column(Text)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
