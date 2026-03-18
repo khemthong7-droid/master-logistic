@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException, Request, Form
+from fastapi import FastAPI, Depends, HTTPException, Request, Form, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -9,6 +9,8 @@ import uvicorn, requests, json, os
 # --- 🛰️ 1. CONFIGURATION ---
 CHANNEL_ACCESS_TOKEN = os.getenv("CHANNEL_ACCESS_TOKEN", "t3oqxpj2T5iHob1wQc+dD4VdsBkEndvRL6Qw6LbYvCf1q8XCNxYDdBF8HV3Mmij96NyoZ6BwirfT7E7qz8c0gqL8mEv65WGV+bEFhu8+aUfVkZu9cZWbiGMbVBCb+S9yC96x0eWOAVADwGzYAJEmcwdB04t89/1O/w1cDnyilFU=")
 USER_ID = os.getenv("USER_ID", "U2d0ca4bdeca0910361b01438c9f19e23")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "masgistics2024") # รหัสผ่านเข้าศูนย์บัญชาการ
+LINE_OA_LINK = "https://line.me/ti/p/@839wctaq" # ลิงก์ LINE OA ของคุณ
 
 def send_line_message(text):
     url = "https://api.line.me/v2/bot/message/push"
@@ -29,7 +31,12 @@ def get_db():
     try: yield db
     finally: db.close()
 
-# --- 🛸 3. ROUTES (จุดบัญชาการทั้งหมด) ---
+# --- 🔐 3. SECURITY CHECK ---
+def is_authenticated(request: Request):
+    # ตรวจสอบว่ามี Cookie การ Login หรือไม่
+    return request.cookies.get("mas_session") == "authenticated"
+
+# --- 🛸 4. ROUTES ---
 
 @app.get("/")
 def root(): return RedirectResponse(url="/profile")
@@ -38,25 +45,52 @@ def root(): return RedirectResponse(url="/profile")
 def company_profile(request: Request):
     return templates.TemplateResponse("profile.html", {"request": request})
 
-@app.get("/payloads", response_class=HTMLResponse)
-def public_jobs(request: Request, db: Session = Depends(get_db)):
-    """หน้าจอสำหรับคนขับรถเข้ามาดูงานที่ว่างอยู่ (Public View)"""
-    open_jobs = db.query(models.Job).filter(models.Job.status == "Open").all()
-    return templates.TemplateResponse("payloads.html", {"request": request, "jobs": open_jobs})
+# --- ส่วนของการ LOGIN ---
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    return HTMLResponse(content=f"""
+        <html><body style='background:#050505;color:white;display:flex;justify-content:center;align-items:center;height:100vh;font-family:sans-serif;text-align:center;'>
+            <form action='/login' method='post' style='background:rgba(255,255,255,0.05);padding:40px;border-radius:10px;border:1px solid rgba(255,255,255,0.1);'>
+                <h1 style='letter-spacing:5px;font-style:italic;'>MISSION CONTROL LOGIN</h1>
+                <input type='password' name='password' placeholder='Enter Authorization Code' style='padding:10px;width:100%;margin-top:20px;background:black;color:white;border:1px solid white;' required>
+                <button type='submit' style='margin-top:20px;width:100%;padding:10px;background:white;color:black;font-weight:bold;cursor:pointer;'>INITIATE ACCESS</button>
+            </form>
+        </body></html>
+    """)
 
+@app.post("/login")
+def process_login(response: Response, password: str = Form(...)):
+    if password == ADMIN_PASSWORD:
+        response = RedirectResponse(url="/admin", status_code=303)
+        response.set_cookie(key="mas_session", value="authenticated")
+        return response
+    return HTMLResponse("Invalid Code. Access Denied.")
+
+# --- หน้า ADMIN (Protected) ---
 @app.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request, db: Session = Depends(get_db)):
+    if not is_authenticated(request): return RedirectResponse(url="/login")
+    
     users = db.query(models.User).all()
     jobs = db.query(models.Job).filter(models.Job.status == "Open").all()
     total_val = sum(j.price for j in jobs) if jobs else 0
     actual_revenue = db.query(models.Transaction).filter(models.Transaction.type == "Job-Deduction").count() * 50
     verified_carriers = [u for u in users if u.is_verified and u.role in ["individual", "fleet"]]
+
     return templates.TemplateResponse("admin.html", {
         "request": request, "users": users, "jobs": jobs,
         "jobs_count": len(jobs), "total_value": total_val, 
         "potential_revenue": actual_revenue,
         "verified_carriers": verified_carriers
     })
+
+@app.get("/payloads", response_class=HTMLResponse)
+def public_jobs(request: Request, db: Session = Depends(get_db)):
+    try:
+        open_jobs = db.query(models.Job).filter(models.Job.status == "Open").all()
+    except Exception:
+        open_jobs = db.query(models.Job).all()
+    return templates.TemplateResponse("payloads.html", {"request": request, "jobs": open_jobs, "line_link": LINE_OA_LINK})
 
 @app.post("/admin/assign-job")
 def assign_job(job_id: int = Form(...), user_id: int = Form(...), db: Session = Depends(get_db)):
@@ -68,13 +102,13 @@ def assign_job(job_id: int = Form(...), user_id: int = Form(...), db: Session = 
         job.status = "Matched"
         new_tx = models.Transaction(user_id=user.id, amount=-FEE, type="Job-Deduction")
         db.add(new_tx); db.commit()
-        send_line_message(f"✅ MISSION MATCHED!\n📦 งาน: {job.title}\n👩‍🚀 คนขับ: {user.full_name}\n💸 หักเครดิต: ฿{FEE}\n💰 คงเหลือ: ฿{user.wallet_balance:,.0f}")
+        send_line_message(f"✅ MISSION MATCHED!\n📦 งาน: {job.title}\n👩‍🚀 คนขับ: {user.full_name}\n💸 หักเครดิต: ฿{FEE}")
     return RedirectResponse(url="/admin", status_code=303)
 
 @app.post("/admin/add-job")
 def add_job(title: str = Form(...), origin: str = Form(...), destination: str = Form(...), 
             price: float = Form(...), truck_type: str = Form(...), db: Session = Depends(get_db)):
-    new_job = models.Job(title=title, origin=origin, destination=destination, price=price, truck_type_required=truck_type)
+    new_job = models.Job(title=title, origin=origin, destination=destination, price=price, truck_type_required=truck_type, status="Open")
     db.add(new_job); db.commit()
     send_line_message(f"📦 Payload ใหม่: {title}\n📍 {origin} -> {destination}\n💰 ฿{price:,.0f}")
     return RedirectResponse(url="/admin", status_code=303)
@@ -107,5 +141,4 @@ def verify_user(user_id: int, db: Session = Depends(get_db)):
     if user: user.is_verified = True; db.commit()
     return RedirectResponse(url="/admin", status_code=303)
 
-if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+if __name__ == "__main__": uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
