@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <title>MASGISTICS | Mission Control</title>
+    <title>MASGISTICS | Mission Control v4</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&display=swap" rel="stylesheet">
     <style>
@@ -18,11 +18,11 @@
             <img src="/static/logo.png" alt="Logo" class="h-12 w-auto">
             <div>
                 <h1 class="text-4xl font-black tracking-tighter uppercase italic text-white leading-none">MASGISTICS</h1>
-                <p class="text-[10px] tracking-[0.3em] text-white/50 uppercase font-bold">Orbital Payload Command</p>
+                <p class="text-[10px] tracking-[0.3em] text-white/50 uppercase font-bold">Orbital Payload Command Center</p>
             </div>
         </div>
         <div class="text-right">
-            <p class="font-mono text-[10px] text-green-500 animate-pulse font-bold">● SYSTEM NOMINAL - UNIT 3 ACTIVE</p>
+            <p class="font-mono text-[10px] text-green-500 animate-pulse font-bold">● SYSTEM NOMINAL - UNIT 4 ANALYTICS</p>
         </div>
     </div>
 
@@ -46,22 +46,46 @@
         </div>
     </div>
 
+    <!-- UNIT 4: ANALYTICS & SELF-OPTIMIZATION -->
+    <div class="mb-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="glass-card p-6 border-l-4 border-l-purple-500">
+            <p class="text-[10px] uppercase text-white/40 font-bold mb-2">Market Interest</p>
+            <div class="flex justify-between items-end">
+                <h4 class="text-2xl font-black italic text-white">{{ view_count }} <span class="text-xs font-normal text-white/40">Views</span></h4>
+                <p class="text-[10px] text-purple-400 font-mono">Telemetry Data</p>
+            </div>
+        </div>
+        <div class="glass-card p-6 border-l-4 border-l-blue-500">
+            <p class="text-[10px] uppercase text-white/40 font-bold mb-2">Conversion Efficiency</p>
+            <div class="flex justify-between items-end">
+                <h4 class="text-2xl font-black italic text-blue-400">{{ conv_rate }}%</h4>
+                <p class="text-[10px] text-blue-400 font-mono italic">Optimization Signal</p>
+            </div>
+        </div>
+        <div class="glass-card p-6 border-l-4 border-l-green-500">
+            <p class="text-[10px] uppercase text-white/40 font-bold mb-2">Auto-Retraining Status</p>
+            <div class="flex justify-between items-center">
+                <span class="text-xs font-bold text-green-400 uppercase tracking-widest animate-pulse">Ready</span>
+                <span class="text-[9px] bg-green-500/10 text-green-400 px-2 py-1 rounded">HEALTHY</span>
+            </div>
+        </div>
+    </div>
+
     <!-- AI MATCHING SECTION -->
     <div class="mb-12 glass-card overflow-hidden border-t-2 border-t-purple-500">
         <div class="p-4 bg-purple-500/10 flex justify-between items-center border-b border-white/10">
             <h3 class="text-sm font-bold uppercase tracking-widest text-purple-400 italic">AI Matching Intelligence</h3>
-            <span class="text-[10px] text-white/30 font-mono italic">Retraining automatically with feedback</span>
+            <span class="text-[10px] text-white/30 font-mono italic">Real-time Autonomous Pairing Active</span>
         </div>
         <div class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {% for job in jobs %}
             <div class="p-4 border border-white/10 rounded bg-white/5">
-                <p class="text-[10px] uppercase text-white/40 mb-2 italic">Payload ID: {{ job.id }}</p>
-                <h4 class="text-md font-bold text-white">{{ job.title }}</h4>
+                <h4 class="text-md font-bold text-white mb-1">{{ job.title }}</h4>
                 <p class="text-xs text-cyan-400 font-mono mb-4">{{ job.origin }} ➔ {{ job.destination }}</p>
                 <form action="/admin/assign-job" method="post" class="space-y-2">
                     <input type="hidden" name="job_id" value="{{ job.id }}">
                     <select name="user_id" class="w-full p-2 text-[10px] rounded bg-black text-white border border-white/20 font-bold" required>
-                        <option value="">-- เลือกนักบินที่ผ่านการตรวจสอบ --</option>
+                        <option value="">เลือกนักบินที่ Verified</option>
                         {% for carrier in verified_carriers %}
                         <option value="{{ carrier.id }}">{{ carrier.full_name }} (฿{{ carrier.wallet_balance }})</option>
                         {% endfor %}
@@ -73,52 +97,36 @@
         </div>
     </div>
 
-    <!-- Personnel Manifest Table -->
-    <div class="lg:col-span-2 glass-card overflow-hidden mb-8">
-        <h3 class="p-4 text-sm font-bold uppercase tracking-widest border-b border-white/10 bg-white/5">Personnel Manifest</h3>
-        <table class="w-full text-left text-sm text-white/80">
-            <thead>
-                <tr class="text-[10px] uppercase text-white/40 border-b border-white/10 bg-black/40">
-                    <th class="p-4">Identifier / Status</th>
-                    <th class="p-4 text-center">Wallet</th>
-                    <th class="p-4 text-right">Command</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for user in users %}
-                <tr class="border-b border-white/5 hover:bg-white/5 transition-colors">
-                    <td class="p-4">
-                        <span class="font-bold text-white">{{ user.full_name }}</span>
-                        {% if user.is_verified %}
-                            <span class="text-[8px] bg-green-500 text-black px-1.5 py-0.5 rounded ml-2 uppercase font-bold">Verified</span>
-                        {% else %}
-                            <span class="text-[8px] bg-yellow-500 text-black px-1.5 py-0.5 rounded ml-2 uppercase font-bold animate-pulse">Pending</span>
-                        {% endif %}
-                        <p class="text-[10px] text-white/30 uppercase italic">{{ user.role }}</p>
-                    </td>
-                    <td class="p-4 text-center font-mono text-yellow-500 font-bold">฿{{ "{:,.0f}".format(user.wallet_balance) }}</td>
-                    <td class="p-4 text-right">
-                        <div class="flex justify-end items-center gap-4">
-                            <form action="/admin/topup/{{ user.id }}" method="post" class="flex gap-1">
-                                <input type="number" name="amount" placeholder="฿" class="w-16 p-1 text-[10px] rounded" required>
-                                <button class="bg-cyan-600 text-white text-[10px] px-2 py-1 uppercase font-bold">Topup</button>
-                            </form>
-                            {% if not user.is_verified %}
-                            <form action="/admin/verify/{{ user.id }}" method="post">
-                                <button class="bg-white text-black text-[10px] px-3 py-1.5 font-black uppercase tracking-widest hover:bg-green-500 hover:text-white transition">Authorize</button>
-                            </form>
-                            {% endif %}
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <!-- Personnel & Mission History -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-12">
+        <div class="glass-card overflow-hidden h-fit">
+            <h3 class="p-4 text-sm font-bold uppercase tracking-widest border-b border-white/10 bg-white/5 text-white italic">Personnel Manifest</h3>
+            <table class="w-full text-left text-sm text-white/80">
+                <thead><tr class="text-[10px] uppercase text-white/40 border-b border-white/10 bg-black/40"><th class="p-4">Identifier</th><th class="p-4 text-center">Wallet</th><th class="p-4 text-right">Command</th></tr></thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr class="border-b border-white/5 hover:bg-white/5"><td class="p-4 font-bold">{{ user.full_name }} <br><span class="text-[10px] {{ 'text-green-500' if user.is_verified else 'text-yellow-500 animate-pulse' }} uppercase font-black tracking-widest">{{ 'Verified' if user.is_verified else 'Pending' }}</span></td><td class="p-4 text-center font-mono text-yellow-500 font-bold bg-yellow-500/5">฿{{ "{:,.0f}".format(user.wallet_balance) }}</td><td class="p-4 text-right"><div class="flex justify-end gap-2"><form action="/admin/topup/{{ user.id }}" method="post" class="flex gap-1"><input type="number" name="amount" placeholder="฿" class="w-16 p-1 text-[10px] rounded" required><button class="bg-cyan-600 text-white text-[10px] px-2 py-1 uppercase font-bold">Topup</button></form>{% if not user.is_verified %}<form action="/admin/verify/{{ user.id }}" method="post"><button class="bg-white text-black text-[10px] px-2 py-1 uppercase font-bold">Verify</button></form>{% endif %}</div></td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="glass-card overflow-hidden h-fit">
+            <h3 class="p-4 text-sm font-bold uppercase tracking-widest border-b border-white/10 bg-white/5 text-gray-400 italic">Mission History</h3>
+            <table class="w-full text-left text-sm text-white/60">
+                <thead><tr class="text-[10px] uppercase text-white/20 border-b border-white/10 bg-black/20"><th class="p-4">Identifier</th><th class="p-4">Route</th><th class="p-4 text-right">Status</th></tr></thead>
+                <tbody>
+                    {% for m_job in matched_jobs %}
+                    <tr class="border-b border-white/5"><td class="p-4 font-mono text-xs">{{ m_job.title }}</td><td class="p-4 font-mono text-[10px]">{{ m_job.origin }} ➔ {{ m_job.destination }}</td><td class="p-4 text-right text-blue-400 font-bold text-[8px] uppercase">Executed</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
-    <!-- Deploy Payload Form -->
-    <div class="glass-card p-6 h-fit max-w-lg">
-        <h3 class="text-sm font-bold uppercase tracking-widest mb-6 border-b border-white/10 pb-2 italic text-green-500">Deploy New Payload</h3>
+    <!-- Deploy Payload -->
+    <div class="glass-card p-6 h-fit max-w-lg border-t-4 border-t-green-500">
+        <h3 class="text-sm font-bold uppercase tracking-widest mb-6 border-b border-white/10 pb-2 italic text-green-500">Deploy Payload</h3>
         <form action="/admin/add-job" method="post" class="space-y-4 text-xs">
             <input type="text" name="title" placeholder="Job Title" class="w-full p-2 rounded" required>
             <div class="grid grid-cols-2 gap-4">
