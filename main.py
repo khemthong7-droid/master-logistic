@@ -20,9 +20,7 @@ def send_line_message(text):
 # --- 🚀 2. INITIALIZATION ---
 database.init_db()
 app = FastAPI(title="MASGISTICS")
-
-if not os.path.exists("static"): 
-    os.makedirs("static")
+if not os.path.exists("static"): os.makedirs("static")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
@@ -31,7 +29,7 @@ def get_db():
     try: yield db
     finally: db.close()
 
-# --- 🛸 3. ROUTES ---
+# --- 🛸 3. ROUTES (จุดบัญชาการทั้งหมด) ---
 
 @app.get("/")
 def root(): return RedirectResponse(url="/profile")
@@ -40,6 +38,12 @@ def root(): return RedirectResponse(url="/profile")
 def company_profile(request: Request):
     return templates.TemplateResponse("profile.html", {"request": request})
 
+@app.get("/payloads", response_class=HTMLResponse)
+def public_jobs(request: Request, db: Session = Depends(get_db)):
+    """หน้าจอสำหรับคนขับรถเข้ามาดูงานที่ว่างอยู่ (Public View)"""
+    open_jobs = db.query(models.Job).filter(models.Job.status == "Open").all()
+    return templates.TemplateResponse("payloads.html", {"request": request, "jobs": open_jobs})
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     users = db.query(models.User).all()
@@ -47,7 +51,6 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     total_val = sum(j.price for j in jobs) if jobs else 0
     actual_revenue = db.query(models.Transaction).filter(models.Transaction.type == "Job-Deduction").count() * 50
     verified_carriers = [u for u in users if u.is_verified and u.role in ["individual", "fleet"]]
-
     return templates.TemplateResponse("admin.html", {
         "request": request, "users": users, "jobs": jobs,
         "jobs_count": len(jobs), "total_value": total_val, 
@@ -65,7 +68,7 @@ def assign_job(job_id: int = Form(...), user_id: int = Form(...), db: Session = 
         job.status = "Matched"
         new_tx = models.Transaction(user_id=user.id, amount=-FEE, type="Job-Deduction")
         db.add(new_tx); db.commit()
-        send_line_message(f"✅ MISSION MATCHED!\n📦 งาน: {job.title}\n👩‍🚀 คนขับ: {user.full_name}\n💸 หักเครดิต: ฿{FEE}\n💰 ยอดเงินคงเหลือ: ฿{user.wallet_balance:,.0f}")
+        send_line_message(f"✅ MISSION MATCHED!\n📦 งาน: {job.title}\n👩‍🚀 คนขับ: {user.full_name}\n💸 หักเครดิต: ฿{FEE}\n💰 คงเหลือ: ฿{user.wallet_balance:,.0f}")
     return RedirectResponse(url="/admin", status_code=303)
 
 @app.post("/admin/add-job")
@@ -104,5 +107,5 @@ def verify_user(user_id: int, db: Session = Depends(get_db)):
     if user: user.is_verified = True; db.commit()
     return RedirectResponse(url="/admin", status_code=303)
 
-if __name__ == "__main__": 
+if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
